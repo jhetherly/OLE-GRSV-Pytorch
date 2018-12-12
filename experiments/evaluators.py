@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-def compute_projection_matrices(dataloader, model, min_singular_value_fraction):
+def compute_projection_matrices_in_memory(dataloader, model, min_singular_value_fraction):
     features_dict = {}
     device = next(model.parameters()).device
     for i, data in enumerate(dataloader, 0):

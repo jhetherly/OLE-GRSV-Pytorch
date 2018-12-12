@@ -12,11 +12,12 @@ import torch.optim as optim
 from torch.utils.data.sampler import Sampler
 import torchvision.transforms as transforms
 
-from utils import setup_logger
-from dataloaders import create_CIFAR10_dataloaders
-from models import SimpleVGG
+from experiments.utils import setup_logger
+from experiments.data_augmentation import create_baseline_transform, create_training_transform
+from experiments.data_loaders import create_CIFAR10_dataloaders
+from experiments.models import SimpleVGG
 from ole_grsv import OLEGRSV
-from evaluators import compute_projection_matrices, evaluate
+from experiments.evaluators import compute_projection_matrices_in_memory, evaluate
 
 
 settings_filename = '/shared/jeff/Documents/sooh/nh02/artifacts/2018-12-08-00-06-50/settings.json'
@@ -29,21 +30,20 @@ features_filename = os.path.join(base_dir, 'features.hdf5')
 model_checkpoint_filename = os.path.join(base_dir, experiment_settings['training']['checkpoint_filename'])
 
 save_path = os.path.join(experiment_settings["artifacts_path"],
-                         "eval_{:%Y-%m-%d-%H-%M-%S}".format(datetime.now()))
+                         "eval_basic_cifar10_{:%Y-%m-%d-%H-%M-%S}".format(datetime.now()))
 os.makedirs(save_path, exist_ok=True)
 logger = setup_logger('eval_cifar10', log_file=os.path.join(save_path, 'eval.log'))
 
 np_rng = np.random.RandomState(experiment_settings['rng'])
 
-transform = transforms.Compose(
-    [
-    #  transforms.Resize(size=224),
-     transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-     ])
-image_dims = (32, 32)
+image_dims = (224, 224)
 
-trainloader, valloader, testloader = create_CIFAR10_dataloaders(transform,
+baseline_transform = create_baseline_transform(image_dims)
+training_transform = create_training_transform(image_dims)
+
+
+trainloader, valloader, testloader = create_CIFAR10_dataloaders(
+    baseline_transform, training_transform,
     experiment_settings['validation']['fraction'],
     experiment_settings['training']['batch_size'],
     experiment_settings['validation']['batch_size'],
@@ -67,7 +67,7 @@ model.eval()
 model.to(device)
 
 if not os.path.isfile(features_filename) or override:
-    features_dict, transforms = compute_projection_matrices(trainloader, model,
+    features_dict, transforms = compute_projection_matrices_in_memory(trainloader, model,
         experiment_settings['loss']['min_singular_value_fraction'])
     
     features_file = h5py.File(features_filename, "w")

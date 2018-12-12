@@ -11,11 +11,12 @@ import torch.optim as optim
 from torch.utils.data.sampler import Sampler
 import torchvision.transforms as transforms
 
-from utils import setup_logger
-from dataloaders import create_CIFAR10_dataloaders
-from models import SimpleVGG
+from experiments.utils import setup_logger
+from experiments.data_augmentation import create_baseline_transform, create_training_transform
+from experiments.data_loaders import create_CIFAR10_dataloaders
+from experiments.models import SimpleVGG
 from ole_grsv import OLEGRSV
-from evaluators import compute_projection_matrices, evaluate
+from experiments.evaluators import compute_projection_matrices_in_memory, evaluate
 
 
 experiment_settings = {
@@ -49,7 +50,7 @@ experiment_settings = {
 }
 
 save_path = os.path.join(experiment_settings["artifacts_path"],
-                         "train_{:%Y-%m-%d-%H-%M-%S}".format(datetime.now()))
+                         "train_basic_cifar10_{:%Y-%m-%d-%H-%M-%S}".format(datetime.now()))
 os.makedirs(save_path, exist_ok=True)
 logger = setup_logger('train_cifar10', log_file=os.path.join(save_path, 'train.log'))
 
@@ -62,22 +63,15 @@ def init_weights(m):
     elif hasattr(m, 'weight'):
         torch.nn.init.xavier_uniform_(m.weight)
 
-base_transform = transforms.Compose(
-    [
-    #  transforms.Resize(size=224),
-     transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-     ])
-training_transform = transforms.Compose(
-    [
-     transforms.ColorJitter(brightness=0.15, contrast=0.1, saturation=0.1, hue=0.1),
-     transforms.RandomAffine(degrees=15, shear=10),
-     base_transform,
-     ])
-image_dims = (32, 32)
+
+image_dims = (224, 224)
+
+baseline_transform = create_baseline_transform(image_dims)
+training_transform = create_training_transform(image_dims)
+
 
 trainloader, valloader, testloader = create_CIFAR10_dataloaders(
-    base_transform, training_transform,
+    baseline_transform, training_transform,
     experiment_settings['validation']['fraction'],
     experiment_settings['training']['batch_size'],
     experiment_settings['validation']['batch_size'],
@@ -96,6 +90,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 model = SimpleVGG(image_dims, num_features=experiment_settings['model']['feature_size'],
                   num_classes=len(classes), model_version=experiment_settings['model']['version'])
+
 model.to(device)
 
 model.apply(init_weights)
@@ -104,6 +99,8 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, nesterov=True)
 
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=experiment_settings['training']['epochs']//3, gamma=0.1)
+# lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
+#     factor=np.power(0.1, 1/3), patience=10, verbose=True)
 # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max',
 #     factor=np.power(0.1, 1/3), patience=20//val_every, verbose=True)
 
@@ -210,7 +207,7 @@ for epoch in range(experiment_settings['training']['epochs']):  # loop over the 
 
     if epoch == 0 or epoch + 1 == experiment_settings['training']['epochs'] or (epoch + 1) % val_every == 0:
         model.eval()
-        _, projections = compute_projection_matrices(trainloader, model,
+        _, projections = compute_projection_matrices_in_memory(trainloader, model,
             experiment_settings['loss']['min_singular_value_fraction'])
         projections = torch.from_numpy(projections).to(device)
 
@@ -227,5 +224,6 @@ for epoch in range(experiment_settings['training']['epochs']):  # loop over the 
         # lr_scheduler.step(val_accuracy)
 
     lr_scheduler.step()
+    # lr_scheduler.step(running_loss)
 
 logger.info('Finished Training')

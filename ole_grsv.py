@@ -123,12 +123,9 @@ class OLEGRSV(torch.nn.Module):
                     with torch.no_grad():
                         v, s, u = torch.svd(z_geometry_c)
             except RuntimeError:
-                print("SVD failed!!!!!")
-                print(class_geometry)
-                print(z_validation)
-                print(z_geometry)
-                print(class_indices)
-                print(z_geometry_c)
+                print('SVD may have failed - check the input features')
+                print('class index: {}'.format(class_geometry))
+                print('features:\n{}'.format(z_geometry_c))
                 raise
 
             valid_subspace_indices = s.ge(self.eigThresh)
