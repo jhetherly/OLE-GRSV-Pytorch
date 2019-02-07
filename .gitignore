@@ -104,10 +104,12 @@ venv.bak/
 .mypy_cache/
 
 
-artifacts
-data
+artifacts/*
+data/*
 experiments/*/artifacts
 experiments/*/data
 *.py
 !ole_grsv.py
 !*/
+*.err
+*.out

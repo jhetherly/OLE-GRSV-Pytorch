@@ -10,6 +10,7 @@ def compute_projection_matrices_in_memory(dataloader, model, min_singular_value_
         inputs, labels = inputs.to(device), labels.to(device)
 
         features = model.feature_vector(inputs)
+        # features = model(inputs)
         features = np.squeeze(features.cpu().data.numpy())
 
         labels = labels.cpu().data.numpy()
@@ -40,6 +41,7 @@ def evaluate(dataloader, model, projections, ole_grsv):
         inputs, labels = inputs.to(device), labels.to(device)
 
         y_pred_model = ole_grsv.predict_from_projections(projections, model.feature_vector(inputs))
+        # y_pred_model = ole_grsv.predict_from_projections(projections, model(inputs))
 
         y_true += labels.cpu().data.numpy().tolist()
         y_pred += torch.argmax(y_pred_model, dim=1).cpu().data.numpy().tolist()
